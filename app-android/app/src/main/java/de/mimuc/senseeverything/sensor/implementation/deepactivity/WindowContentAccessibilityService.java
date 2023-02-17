@@ -5,6 +5,7 @@ import android.os.Build;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 
 import androidx.room.Room;
 
@@ -49,7 +50,13 @@ public class WindowContentAccessibilityService extends AccessibilityService {
                 public void run() {
                     // do stuff here
                     try {
-                        Map<String,Object> nestedDataMap = logAccNodeInfoRecurisve(accessibilityNodeInfo, -1, true);
+                        Map<String,Object> nestedDataMap = new HashMap<>();
+                        // accessibility node
+                        nestedDataMap.put("accessibilityNodes", logAccNodeInfoRecurisve(accessibilityNodeInfo, -1, true));
+
+                        // accessibility event
+                        nestedDataMap.put("accessibilityEvent", logAccEvent(accessibilityEvent));
+
                         LogData logData = new LogData(accessibilityEvent.getEventTime(),"deepactivity", gson.toJson(nestedDataMap));
                         db.logDataDao().insertAll(logData);
                         Log.i(TAG,"Logged successful: "+nestedDataMap.get("ourId"));
@@ -64,6 +71,8 @@ public class WindowContentAccessibilityService extends AccessibilityService {
     }
 
 
+
+
     /**
      *
      * @param nodeInfo
@@ -71,6 +80,9 @@ public class WindowContentAccessibilityService extends AccessibilityService {
      * @param logDeep whether all referenced components should be logged in depth, or only a reference to them.
      */
     private Map<String,Object> logAccNodeInfoRecurisve(AccessibilityNodeInfo nodeInfo, int parentId, boolean logDeep){
+        if (nodeInfo == null){
+            return null;
+        }
         // log stuff
         Map<String,Object> dataMap = new HashMap<>();
         dataMap.put("children",new ArrayList<>());
@@ -83,32 +95,15 @@ public class WindowContentAccessibilityService extends AccessibilityService {
         grabSimpleDatatypes(dataMap,nodeInfo);
 
         // -- complex data
-        // TODO implement these
-//        nodeInfo.getWindow();
-//        nodeInfo.getActionList();
-//        nodeInfo.getBoundsInScreen();
-//        nodeInfo.getCollectionInfo();
-//        nodeInfo.getCollectionItemInfo();
-//        nodeInfo.getExtras();
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-//            nodeInfo.getExtraRenderingInfo();
-//        }
-//        nodeInfo.getLabelFor();
-//        nodeInfo.getLabeledBy();
-//        nodeInfo.getRangeInfo();
-//        nodeInfo.getParent();
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-//            nodeInfo.getTouchDelegateInfo();
-//        }
-//        nodeInfo.getTraversalAfter();
-//        nodeInfo.getTraversalBefore();
-//        nodeInfo.getBoundsInParent();
+        grabComplexDatatypes(dataMap, nodeInfo);
 
 
         // call next ones recursive
-        for(int i=0; i<nodeInfo.getChildCount(); i++){
-            Map<String,Object> childData = logAccNodeInfoRecurisve(nodeInfo.getChild(i), ourId, true);
-            ((ArrayList)dataMap.get("children")).add(childData);
+        if (logDeep) {
+            for (int i = 0; i < nodeInfo.getChildCount(); i++) {
+                Map<String, Object> childData = logAccNodeInfoRecurisve(nodeInfo.getChild(i), ourId, true);
+                ((ArrayList) dataMap.get("children")).add(childData);
+            }
         }
 
         return dataMap;
@@ -175,14 +170,95 @@ public class WindowContentAccessibilityService extends AccessibilityService {
         int textSelectionEnd = nodeInfo.getTextSelectionEnd();
         dataMap.put("textSelectionEnd",textSelectionEnd);
 
-        int textSeleectionStart = nodeInfo.getTextSelectionStart();
-        dataMap.put("textSeleectionStart",textSeleectionStart);
+        int textSelectionStart = nodeInfo.getTextSelectionStart();
+        dataMap.put("textSelectionStart",textSelectionStart);
 
         String viewIdResourceName = nodeInfo.getViewIdResourceName();
         dataMap.put("viewIdResourceName",viewIdResourceName);
 
         int movementGranularities = nodeInfo.getMovementGranularities();
         dataMap.put("movementGranularities",movementGranularities);
+    }
+
+    private void grabComplexDatatypes(Map<String,Object> dataMap, AccessibilityNodeInfo nodeInfo){
+        AccessibilityWindowInfo accessibilityWindowInfo = nodeInfo.getWindow();
+        if (accessibilityWindowInfo == null){
+            return;
+        }
+        Map<String,Object> subDataMap1 = new HashMap<>();
+        dataMap.put("accessibilityWindowInfo",subDataMap1);
+        subDataMap1.put("title",accessibilityWindowInfo.getTitle());
+        subDataMap1.put("type",accessibilityWindowInfo.getType());
+        // TODO more data available here
+
+       // nodeInfo.getActionList();
+//        nodeInfo.getBoundsInScreen();
+       // nodeInfo.getCollectionInfo();
+//        nodeInfo.getCollectionItemInfo();
+//        nodeInfo.getExtras();
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            nodeInfo.getExtraRenderingInfo();
+//        }
+//        nodeInfo.getLabelFor();
+//        nodeInfo.getLabeledBy();
+//        nodeInfo.getRangeInfo();
+//        nodeInfo.getParent();
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//            nodeInfo.getTouchDelegateInfo();
+//        }
+//        nodeInfo.getTraversalAfter();
+//        nodeInfo.getTraversalBefore();
+//        nodeInfo.getBoundsInParent();
+
+    }
+
+
+    private Map<String, Object> logAccEvent(AccessibilityEvent accessibilityEvent) {
+        Map<String,Object> dataMap = new HashMap<>();
+
+        // TODO log these
+        dataMap.put("eventTime",accessibilityEvent.getEventTime());
+        dataMap.put("eventType",accessibilityEvent.getEventType());
+        dataMap.put("packageName",accessibilityEvent.getPackageName());
+        dataMap.put("action",accessibilityEvent.getAction());
+        dataMap.put("contentChangeTypes",accessibilityEvent.getContentChangeTypes());
+        dataMap.put("describeContents",accessibilityEvent.describeContents());
+        dataMap.put("movementGranularities",accessibilityEvent.getMovementGranularity());
+        dataMap.put("recordCount", accessibilityEvent.getRecordCount());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            dataMap.put("SpeechStateChangeTypes",accessibilityEvent.getSpeechStateChangeTypes());
+            dataMap.put("displayId",accessibilityEvent.getDisplayId());
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            dataMap.put("windowChanges",accessibilityEvent.getWindowChanges());
+            dataMap.put("scrollDeltaX",accessibilityEvent.getScrollDeltaX());
+            dataMap.put("scrollDeltaY",accessibilityEvent.getScrollDeltaY());
+        }
+        dataMap.put("addedCount",accessibilityEvent.getAddedCount());
+        dataMap.put("beforeText",accessibilityEvent.getBeforeText());
+        dataMap.put("className",accessibilityEvent.getClassName());
+        dataMap.put("contentDescription",accessibilityEvent.getContentDescription());
+        dataMap.put("currentItemIndex",accessibilityEvent.getCurrentItemIndex());
+
+        dataMap.put("fromIndex",accessibilityEvent.getFromIndex());
+        dataMap.put("itemCount",accessibilityEvent.getItemCount());
+        dataMap.put("maxScrollX",accessibilityEvent.getMaxScrollX());
+        dataMap.put("maxScrollY",accessibilityEvent.getMaxScrollY());
+        // TODO accessibilityEvent.getParcelableData();
+        dataMap.put("removedCount",accessibilityEvent.getRemovedCount());
+        dataMap.put("scrollX",accessibilityEvent.getScrollX());
+        dataMap.put("scrollY",accessibilityEvent.getScrollY());
+
+        AccessibilityNodeInfo sourceNode = accessibilityEvent.getSource();
+        if (sourceNode != null) {
+            dataMap.put("source", logAccNodeInfoRecurisve(sourceNode, -1, false));
+        }
+        dataMap.put("text",accessibilityEvent.getText());
+        dataMap.put("toIndex",accessibilityEvent.getToIndex());
+        dataMap.put("windowId",accessibilityEvent.getWindowId());
+
+        return dataMap;
     }
 
 
